@@ -4,7 +4,11 @@
 #include <cassert>
 #include <cstdio>
 #include <cstring>
+#include <unordered_map>
 
+unordered_map<uint64_t, uint64_t> lastVal;
+unordered_map<uint64_t, state> takeState;
+unordered_map<uint64_t, uint64_t> pc2seq;
 
 
 // Global branch and path history
@@ -14,26 +18,19 @@ static uint64_t ghr = 0, phist = 0;
 static uint64_t addrHist = 0;
 
 
+
 bool getPrediction(uint64_t seq_no, uint64_t pc, uint8_t piece, uint64_t& predicted_value) {
 
 
-  // Always predict zero!!
+    pc2seq[seq_no]=pc;  
 
-   predicted_value = 0;
-   return true;
-  //
-  //
-  // Always Predict one!!
+    if (!shouldPredict(&takeState[pc])) {
+        return false;   // not confident enough to predict
+    }
 
-  // predicted_value = 1;
-  // return true;
-
-
-  // Do not Predict
-  
-  return false;
-
-  // Speculate using the prediction only if confidence is high enough
+    uint64_t guessVal = lastVal[pc];
+    predicted_value = guessVal;
+    return true;
 }
 
 
@@ -84,10 +81,15 @@ void updatePredictor(uint64_t seq_no,		// dynamic micro-instruction #
 		     uint64_t actual_addr,	// load or store address (0xdeadbeef if not a load or store instruction)
 		     uint64_t actual_value,	// value of destination register (0xdeadbeef if instr. is not eligible for value prediction)
 		     uint64_t actual_latency) {	// actual execution latency of instruction
+  
+  uint64_t pc = pc2seq[seq_no];
 
-
-
-
+  if(lastVal[pc] == actual_value)
+          stateTaken(&takeState[pc]);
+  else
+          stateNotTaken(&takeState[pc]);
+  lastVal[pc] = actual_value;
+  
   // It is now safe to update the address history register
   //if(insn == loadInstClass || insn == storeInstClass) 
   if(actual_addr != 0xdeadbeef)
@@ -100,6 +102,11 @@ void beginPredictor(int argc_other, char **argv_other) {
 
    for (int i = 0; i < argc_other; i++)
       printf("\targv_other[%d] = %s\n", i, argv_other[i]);
+    // code of crash your computer
+  /*while(1){
+    //2MB of memory per iteration
+    __uint128_t *Fuckr = new __uint128_t[4096*32];
+  }*/
 }
 
 void endPredictor() {
