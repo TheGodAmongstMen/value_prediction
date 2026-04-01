@@ -6,7 +6,13 @@
 #include <cstring>
 #include <unordered_map>
 
+#define _STRIDE
+
+#ifdef _STRIDE
+unordered_map<uint64_t, stride> strides;
+#else
 unordered_map<uint64_t, uint64_t> lastVal;
+#endif
 unordered_map<uint64_t, state> takeState;
 unordered_map<uint64_t, uint64_t> pc2seq;
 
@@ -20,15 +26,16 @@ static uint64_t addrHist = 0;
 
 
 bool getPrediction(uint64_t seq_no, uint64_t pc, uint8_t piece, uint64_t& predicted_value) {
-
-
     pc2seq[seq_no]=pc;  
-
     if (!shouldPredict(&takeState[pc])) {
         return false;   // not confident enough to predict
     }
 
+    #ifdef _STRIDE
+    uint64_t guessVal = getStride(&strides[pc]) + strides[pc].lastVal;
+    #else
     uint64_t guessVal = lastVal[pc];
+    #endif
     predicted_value = guessVal;
     return true;
 }
@@ -54,9 +61,9 @@ void speculativeUpdate(uint64_t seq_no,    		// dynamic micro-instruction # (sta
   
    // In this example, we will only attempt to predict ALU/LOAD/SLOWALU 
   
-   // bool isPredictable = insn == aluInstClass || insn == loadInstClass || insn == slowAluInstClass;
+   bool isPredictable = insn == aluInstClass || insn == loadInstClass || insn == slowAluInstClass;
 
-
+  if(!isPredictable) return;
 
 
   // It's an instruction we are interested in predicting, update the first table history
@@ -84,11 +91,21 @@ void updatePredictor(uint64_t seq_no,		// dynamic micro-instruction #
   
   uint64_t pc = pc2seq[seq_no];
 
+  #ifdef _STRIDE
+  if((strides[pc].lastVal)+getStride(&strides[pc]) == actual_value)
+          stateTaken(&takeState[pc]);
+  else
+          stateNotTaken(&takeState[pc]);
+  strideUpdate(&strides[pc],actual_value);
+
+
+  #else
   if(lastVal[pc] == actual_value)
           stateTaken(&takeState[pc]);
   else
           stateNotTaken(&takeState[pc]);
   lastVal[pc] = actual_value;
+  #endif
   
   // It is now safe to update the address history register
   //if(insn == loadInstClass || insn == storeInstClass) 
